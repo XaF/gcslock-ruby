@@ -15,7 +15,7 @@ require 'gcslock/mutex'
 
 m = GCSLock::Mutex.new('your-bucket-name', 'my-file.lock')
 m.synchronize do
-  // Protected and globally serialized computation happens here.
+  # Protected and globally serialized computation happens here.
 end
 ```
 
