@@ -16,7 +16,7 @@ module GCSLock
     end
 
     # Attempts to grab the lock and waits if it isn't available.
-    # Raises `ThreadError` if `mutex` was locked by the current thread.
+    # Raises `LockAlreadyOwnedError` if the lock is already owned by the current instance.
     def lock(timeout: nil)
       raise LockAlreadyOwnedError, "Mutex for #{@object.name} is already owned by this process" if owned?
 
