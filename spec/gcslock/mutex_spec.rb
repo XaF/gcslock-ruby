@@ -83,8 +83,8 @@ describe GCSLock::Mutex do
 
       it 'sleeps just the time needed to retry once at the end' do
         expect(@mutex).to receive(:owned?).once.and_return(false)
-        expect(@mutex).to receive(:sleep).exactly(2).times
-        expect(@mutex).to receive(:try_lock).exactly(3).times.and_return(false)
+        expect(@mutex).to receive(:sleep).at_least(2).times
+        expect(@mutex).to receive(:try_lock).at_least(3).times.and_return(false)
 
         expect do
           @mutex.lock(timeout: 0.03)

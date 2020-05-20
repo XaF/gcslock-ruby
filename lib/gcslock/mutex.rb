@@ -21,18 +21,21 @@ module GCSLock
       raise LockAlreadyOwnedError, "Mutex for #{@object.name} is already owned by this process" if owned?
 
       backoff = @min_backoff
-      waited = 0.0 unless timeout.nil?
+
+      now = Time.now
+      end_time = now + timeout unless timeout.nil?
 
       loop do
         return true if try_lock
-        break if !timeout.nil? && waited + backoff > timeout
+        break if !timeout.nil? && now + backoff >= end_time
         sleep(backoff)
 
         backoff_opts = [@max_backoff, backoff * 2]
 
         unless timeout.nil?
-          waited += backoff
-          backoff_opts.push(timeout - waited) if timeout > waited
+          now = Time.now
+          diff = end_time - now
+          backoff_opts.push(diff) if diff > 0
         end
 
         backoff = backoff_opts.min
@@ -45,6 +48,8 @@ module GCSLock
     def locked?
       @object.reload!
       @object.exists?
+    rescue Google::Cloud::NotFoundError
+      false
     end
 
     # Returns `true` if this lock is currently held by current thread.
