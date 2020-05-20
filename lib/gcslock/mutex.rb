@@ -16,7 +16,14 @@ module GCSLock
     end
 
     # Attempts to grab the lock and waits if it isn't available.
-    # Raises `LockAlreadyOwnedError` if the lock is already owned by the current instance.
+    #
+    # @param timeout [Integer] the duration to wait before cancelling the operation
+    #   if the lock was not obtained (unlimited if _nil_).
+    #
+    # @return [Boolean] `true` if the lock was obtained.
+    #
+    # @raise [LockAlreadyOwnedError] if the lock is already owned by the current instance.
+    # @raise [LockTimeoutError] if the lock was not obtained before reaching the timeout.
     def lock(timeout: nil)
       raise LockAlreadyOwnedError, "Mutex for #{@object.name} is already owned by this process" if owned?
 
@@ -44,7 +51,9 @@ module GCSLock
       raise LockTimeoutError, "Unable to get mutex for #{@object.name} before timeout"
     end
 
-    # Returns `true` if this lock is currently held by some thread.
+    # Verifies if the lock is already taken.
+    #
+    # @return [Boolean] `true` if this lock is currently held.
     def locked?
       @object.reload!
       @object.exists?
@@ -52,25 +61,36 @@ module GCSLock
       false
     end
 
-    # Returns `true` if this lock is currently held by current thread.
+    # Verifies if the lock is already owned by this instance.
+    #
+    # @return [Boolean] `true` if this lock is currently held by this instance.
     def owned?
       locked? && @object.size == @uuid.size && @object.download.read == @uuid
     end
 
     # Obtains a lock, runs the block, and releases the lock when the block completes.
-    # Raises `LockAlreadyOwnedError` if the lock is already owned by the current instance.
+    #
+    # @param timeout [Integer] the duration to wait before cancelling the operation
+    #   if the lock was not obtained (unlimited if _nil_).
+    #
+    # @return [Object] what the called block returned.
+    #
+    # @raise [LockAlreadyOwnedError] if the lock is already owned by the current instance.
+    # @raise [LockTimeoutError] if the lock was not obtained before reaching the timeout.
     def synchronize(timeout: nil)
-      raise LockAlreadyOwnedError, "Mutex for #{@object.name} is already owned by this process" if owned?
-
       lock(timeout: timeout)
       begin
-        yield
+        block = yield
       ensure
         unlock
       end
+
+      block
     end
 
-    # Attempts to obtain the lock and returns immediately. Returns `true` if the lock was granted.
+    # Attempts to obtain the lock and returns immediately.
+    #
+    # @return [Boolean] `true` if the lock was granted.
     def try_lock
       @client.service.service.insert_object(
         @bucket.name,
@@ -86,15 +106,27 @@ module GCSLock
       false
     end
 
-    # Releases the lock. Raises `LockNotOwnedError` if the lock is not owned by the current instance.
+    # Releases the lock.
+    #
+    # @return _nil_
+    #
+    # @raise [LockNotOwnedError] if the lock is not owned by the current instance.
     def unlock
       raise LockNotOwnedError, "Mutex for #{@object.name} is not owned by this process" unless owned?
       @object.delete
+
+      nil
     end
 
-    # Releases the lock even if not owned by this instance. Raises `LockNotFoundError` if the lock cannot be found.
+    # Releases the lock even if not owned by this instance.
+    #
+    # @return _nil_
+    #
+    # @raise [LockNotFoundError] if the lock is not held by anyone.
     def unlock!
       @object.delete
+
+      nil
     rescue Google::Cloud::NotFoundError => e
       raise LockNotFoundError, "Mutex for #{@object.name} not found"
     end
