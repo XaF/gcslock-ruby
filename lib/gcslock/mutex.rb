@@ -2,6 +2,7 @@ require 'google/cloud/storage'
 require 'securerandom'
 
 require_relative 'errors'
+require_relative 'utils'
 
 module GCSLock
   class Mutex
@@ -27,28 +28,13 @@ module GCSLock
     def lock(timeout: nil)
       raise LockAlreadyOwnedError, "Mutex for #{@object.name} is already owned by this process" if owned?
 
-      backoff = @min_backoff
-
-      now = Time.now
-      end_time = now + timeout unless timeout.nil?
-
-      loop do
-        return true if try_lock
-        break if !timeout.nil? && now + backoff >= end_time
-        sleep(backoff)
-
-        backoff_opts = [@max_backoff, backoff * 2]
-
-        unless timeout.nil?
-          now = Time.now
-          diff = end_time - now
-          backoff_opts.push(diff) if diff > 0
+      begin
+        Utils.backoff(min_backoff: @min_backoff, max_backoff: @max_backoff, timeout: timeout) do
+          try_lock
         end
-
-        backoff = backoff_opts.min
+      rescue LockTimeoutError
+        raise LockTimeoutError, "Unable to get mutex for #{@object.name} before timeout"
       end
-
-      raise LockTimeoutError, "Unable to get mutex for #{@object.name} before timeout"
     end
 
     # Verifies if the lock is already taken.

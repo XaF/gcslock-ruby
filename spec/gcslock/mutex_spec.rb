@@ -33,13 +33,13 @@ describe GCSLock::Mutex do
       allow(@bucket).to receive(:file).and_return(@object)
     end
 
-    it 'initializes in GCS client when none provided' do
+    it 'initializes a GCS client when none provided' do
       expect(Google::Cloud::Storage).to receive(:new).once
 
       GCSLock::Mutex.new(@bucket_name, @object_name)
     end
 
-    it 'initializes in GCS client when none provided' do
+    it 'does not initialize a GCS client when none provided' do
       expect(Google::Cloud::Storage).not_to receive(:new)
 
       GCSLock::Mutex.new(@bucket_name, @object_name, client: @gcs)
@@ -75,7 +75,7 @@ describe GCSLock::Mutex do
       it 'sleeps and retry when failing on the first try_lock' do
         expect(@mutex).to receive(:owned?).once.and_return(false)
         expect(@mutex).to receive(:try_lock).once.and_return(false)
-        expect(@mutex).to receive(:sleep).once
+        expect(GCSLock::Utils).to receive(:sleep).once
         expect(@mutex).to receive(:try_lock).once.and_return(true)
 
         @mutex.lock(timeout: 2)
@@ -83,7 +83,7 @@ describe GCSLock::Mutex do
 
       it 'sleeps just the time needed to retry once at the end' do
         expect(@mutex).to receive(:owned?).once.and_return(false)
-        expect(@mutex).to receive(:sleep).at_least(2).times
+        expect(GCSLock::Utils).to receive(:sleep).at_least(2).times
         expect(@mutex).to receive(:try_lock).at_least(3).times.and_return(false)
 
         expect do
@@ -178,7 +178,6 @@ describe GCSLock::Mutex do
 
     describe '.synchronize' do
       it 'locks, yields and unlock the mutex' do
-        expect(@mutex).to receive(:owned?).once.and_return(false)
         expect(@mutex).to receive(:lock).once.and_return(true)
         expect(@mutex).to receive(:unlock).once
 
@@ -192,7 +191,6 @@ describe GCSLock::Mutex do
 
       it 'raises an error if the lock is already owned' do
         expect(@mutex).to receive(:owned?).once.and_return(true)
-        expect(@mutex).not_to receive(:lock)
         expect(@mutex).not_to receive(:unlock)
 
         has_yielded = false
